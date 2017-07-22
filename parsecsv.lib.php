@@ -1,6 +1,8 @@
 <?php
 
-class parseCSV {
+namespace ParseCSV;
+
+class ParseCSV {
 
     /*
     Class: parseCSV v0.4.3 beta
@@ -339,6 +341,16 @@ class parseCSV {
      */
     public $data = array();
 
+//https://github.com/parsecsv/parsecsv-for-php/pull/83
+    /**
+     * Remove bom
+     * Strip off BOM (UTF-8)
+     *
+     * @access public
+     * @var bool
+     */
+    public $remove_bom = false;
+
     /**
      * Constructor
      * Class constructor
@@ -409,6 +421,8 @@ class parseCSV {
                 $this->data = $this->parse_file($input);
             } else {
                 $this->file_data = &$input;
+//https://github.com/parsecsv/parsecsv-for-php/pull/94
+//                $this->input_encoding = mb_detect_encoding($this->file_data);
                 $this->data = $this->parse_string();
             }
 
@@ -524,6 +538,9 @@ class parseCSV {
 
         if (is_null($enclosure)) {
             $enclosure = $this->enclosure;
+        } else {
+//https://github.com/parsecsv/parsecsv-for-php/pull/74
+            $this->enclosure = $enclosure;
         }
 
         if (is_null($preferred)) {
@@ -840,7 +857,8 @@ class parseCSV {
 
         // create data
         foreach ($data as $key => $row) {
-            foreach ($row as $field => $value) {
+            foreach ($fields as $fieldname) {
+                $value = isset($row[$fieldname]) ? $row[$fieldname]: null;
                 $entry[] = $this->_enclose_value($value, $delimiter);
             }
 
@@ -853,6 +871,22 @@ class parseCSV {
         }
 
         return $string;
+    }
+
+    public function removeBom($data) {
+        // strip off BOM (UTF-8)
+        if (substr($data, 0, 3) === pack('CCC', 0xef, 0xbb, 0xbf)) {
+            $data = substr($data, 3);
+        }
+        // strip off BOM (UTF-16)
+        else if (substr($data, 0, 2) === pack('CCC', 0xff, 0xfe)) {
+            $data = substr($data, 2);
+        }
+        // strip off BOM (UTF-16)
+        else if (substr($data, 0, 2) === pack('CCC', 0xfe, 0xff)) {
+            $data = substr($data, 2);
+        }
+        return $data;
     }
 
     /**
@@ -884,12 +918,20 @@ class parseCSV {
                 $data = ltrim($strip[1]);
             }
 
+//https://github.com/parsecsv/parsecsv-for-php/pull/94
+//            $this->input_encoding = mb_detect_encoding($data);
+             
             if ($this->convert_encoding) {
                 $data = iconv($this->input_encoding, $this->output_encoding, $data);
             }
 
             if (substr($data, -1) != "\n") {
                 $data .= "\n";
+            }
+
+//https://github.com/parsecsv/parsecsv-for-php/pull/83
+            if($this->remove_bom) {
+                $data = $this->removeBom($data);
             }
 
             $this->file_data = &$data;
